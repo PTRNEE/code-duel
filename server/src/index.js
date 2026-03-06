@@ -10,6 +10,8 @@ import cors from "cors";
 import http from "http";
 import { Server } from "socket.io";
 
+import { spawn } from "child_process";
+
 const { PrismaClient } = pkg;
 const prisma = new PrismaClient();
 
@@ -22,20 +24,49 @@ const io = new Server(server, {
   },
 });
 
+const battleRooms = {};
+
 io.on("connection", (socket) => {
 
-  console.log("user connected");
+  socket.on("joinBattle", ({ battleId, role }) => {
 
-  socket.on("joinBattle", (battleId) => {
+    if (!battleRooms[battleId]) {
+      battleRooms[battleId] = {
+        player1: null,
+        player2: null
+      };
+    }
+
+    const room = battleRooms[battleId];
+
+    if (role === "player1") {
+
+      if (room.player1) {
+        socket.emit("roleTaken");
+        return;
+      }
+
+      room.player1 = socket.id;
+    }
+
+    if (role === "player2") {
+
+      if (room.player2) {
+        socket.emit("roleTaken");
+        return;
+      }
+
+      room.player2 = socket.id;
+    }
 
     socket.join(battleId);
-    console.log("joined battle", battleId);
 
+    io.to(battleId).emit("roomUpdate", room);
   });
 
   socket.on("codeUpdate", ({ battleId, player, code }) => {
 
-    io.to(battleId).emit("codeUpdate", {
+    socket.to(battleId).emit("codeUpdate", {
       player,
       code
     });
@@ -43,7 +74,22 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
-    console.log("user disconnected");
+
+    for (const battleId in battleRooms) {
+
+      const room = battleRooms[battleId];
+
+      if (room.player1 === socket.id) {
+        room.player1 = null;
+      }
+
+      if (room.player2 === socket.id) {
+        room.player2 = null;
+      }
+
+      io.to(battleId).emit("roomUpdate", room);
+    }
+
   });
 
 });
@@ -138,6 +184,47 @@ app.post("/users", async (req, res) => {
   }
 });
 
+// // Run code without saving submission
+// app.post("/run", async (req, res) => {
+
+//   const { code, input } = req.body;
+
+//   try {
+
+//     const result = await runPython(code, input);
+
+//     res.json({
+//       output: result
+//     });
+
+//   } catch (err) {
+
+//     res.json({
+//       output: "ERROR"
+//     });
+
+//   }
+
+// });
+
+app.post("/run", async (req, res) => {
+
+  const { code, input } = req.body;
+
+  console.log("CODE:");
+  console.log(code);
+
+  console.log("INPUT:");
+  console.log(input);
+
+  const result = await runPython(code, input);
+
+  console.log("RESULT:", result);
+
+  res.json({ output: result });
+
+});
+
 // Handle code submission
 app.post("/submit", async (req, res) => {
   const { userId, battleId, code } = req.body;
@@ -213,22 +300,75 @@ app.get("/leaderboard/:battleId", async (req, res) => {
   }
 });
 
-// Helper function to run Python code
+// // Utility function to run Python code
+// function runPython(code, input) {
+
+//   return new Promise((resolve, reject) => {
+
+//     const filePath = path.join(process.cwd(), "temp.py");
+
+//     fs.writeFileSync(filePath, code);
+
+//     const process = exec(`python ${filePath}`);
+
+//     if (input){
+//       process.stdin.write(input + "\n");
+//       process.stdin.end();
+//     }
+
+//     let output = "";
+
+//     process.stdout.on("data", (data) => {
+//       output += data;
+//     });
+
+//     process.stderr.on("data", (data) => {
+//       output += data;
+//     });
+
+//     process.on("close", () => {
+//       fs.unlinkSync(filePath);
+//       resolve(output);
+//     });
+
+//   });
+
+// }
+
 function runPython(code, input) {
   return new Promise((resolve, reject) => {
+
     const filePath = path.join(process.cwd(), "temp.py");
 
     fs.writeFileSync(filePath, code);
 
-    exec(`python temp.py ${input}`, (error, stdout, stderr) => {
+    const py = spawn("python", [filePath]);
+
+    let output = "";
+    let errorOutput = "";
+
+    py.stdin.write(input);
+    py.stdin.end();
+
+    py.stdout.on("data", (data) => {
+      output += data.toString();
+    });
+
+    py.stderr.on("data", (data) => {
+      errorOutput += data.toString();
+    });
+
+    py.on("close", () => {
       fs.unlinkSync(filePath);
 
-      if (error) {
-        return resolve("ERROR");
+      if (errorOutput) {
+        console.log(errorOutput);
+        resolve("ERROR");
+      } else {
+        resolve(output);
       }
-
-      resolve(stdout);
     });
+
   });
 }
 

@@ -13,9 +13,17 @@ function BattleRoom() {
   const [player1Code, setPlayer1Code] = useState("");
   const [player2Code, setPlayer2Code] = useState("");
 
+  const [input, setInput] = useState("");
+  const [output, setOutput] = useState("");
+  
+  const [finished, setFinished] = useState(false);
+
   useEffect(() => {
 
-    socket.emit("joinBattle", id);
+    socket.emit("joinBattle", {
+      battleId: id,
+      role: role
+    });
 
     socket.on("codeUpdate", ({ player, code }) => {
 
@@ -33,7 +41,7 @@ function BattleRoom() {
       socket.off("codeUpdate");
     };
 
-  }, [id]);
+  }, [id, role]);
 
   const updateCode = (value) => {
 
@@ -63,6 +71,54 @@ function BattleRoom() {
 
   };
 
+  const handleCodeChange = (newCode) => {
+    // setCode(newCode);
+
+    socket.emit("codeChange", {
+      battleId: id,
+      role: role,
+      code: newCode
+    });
+  };
+
+  const runCode = async () => {
+
+    try{
+      let code = "";
+
+      if(role === "player1") code = player1Code;
+      if(role === "player2") code = player2Code;
+
+      console.log("Running code:", code);
+
+      const res = await fetch("http://localhost:3000/run", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          code,
+          input
+        })
+      });
+
+      const data = await res.json();
+
+      console.log("Run result:", data);
+
+      setOutput(data.output);
+    } catch (err) {
+      console.error(err);
+
+      setOutput("ERROR RUNNING CODE");
+    }
+    
+  };
+
+  const toggleFinish = () => {
+    setFinished(!finished);
+  };
+
   return (
 
     <div style={{ padding: 20 }}>
@@ -70,14 +126,12 @@ function BattleRoom() {
       <h1>Battle Room</h1>
       <p>Your Role: {role}</p>
 
-      {/* PLAYER 1 */}
-
       {(role === "player1") && (
 
         <CodeEditor
           code={player1Code}
           setCode={updateCode}
-          readOnly={false}
+          readOnly={finished}
         />
 
       )}
@@ -87,7 +141,7 @@ function BattleRoom() {
         <CodeEditor
           code={player2Code}
           setCode={updateCode}
-          readOnly={false}
+          readOnly={finished}
         />
 
       )}
@@ -129,9 +183,56 @@ function BattleRoom() {
 
       )}
 
+      <div style={{marginTop:20}}>
+
+        <h3>Input</h3>
+
+        <textarea
+          value={input}
+          onChange={(e)=>setInput(e.target.value)}
+          rows={5}
+          style={{
+            width:"90%",
+            border:"1px solid gray",
+            fontFamily:"monospace",
+            padding:10,
+            background: "transparent",
+            color: "inherit"
+          }}
+        />
+
+        <br></br>
+
+        <button onClick={runCode}>
+        Run
+        </button>
+
+        <button onClick={toggleFinish}>
+        {finished ? "Cancel Finish" : "Finish"}
+        </button>
+
+      </div>
+
+      <h3>Output</h3>
+
+      {output && (
+
+        <div style={{
+          marginTop:20,
+          border:"1px solid gray",
+          padding:10
+        }}>
+
+        <pre>{output}</pre>
+
+        </div>
+
+      )}
+
     </div>
 
   );
+
 }
 
 export default BattleRoom;

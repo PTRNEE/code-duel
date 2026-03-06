@@ -7,10 +7,6 @@ function RoleSelect() {
   const navigate = useNavigate();
   const { id } = useParams();
 
-  // const chooseRole = (role) => {
-  //   navigate(`/battle/${id}/room?role=${role}`);
-  // };
-
   const [room, setRoom] = useState({
     player1: false,
     player2: false

@@ -300,41 +300,6 @@ app.get("/leaderboard/:battleId", async (req, res) => {
   }
 });
 
-// // Utility function to run Python code
-// function runPython(code, input) {
-
-//   return new Promise((resolve, reject) => {
-
-//     const filePath = path.join(process.cwd(), "temp.py");
-
-//     fs.writeFileSync(filePath, code);
-
-//     const process = exec(`python ${filePath}`);
-
-//     if (input){
-//       process.stdin.write(input + "\n");
-//       process.stdin.end();
-//     }
-
-//     let output = "";
-
-//     process.stdout.on("data", (data) => {
-//       output += data;
-//     });
-
-//     process.stderr.on("data", (data) => {
-//       output += data;
-//     });
-
-//     process.on("close", () => {
-//       fs.unlinkSync(filePath);
-//       resolve(output);
-//     });
-
-//   });
-
-// }
-
 function runPython(code, input) {
   return new Promise((resolve, reject) => {
 

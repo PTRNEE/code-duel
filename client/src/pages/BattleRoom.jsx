@@ -72,7 +72,6 @@ function BattleRoom() {
   };
 
   const handleCodeChange = (newCode) => {
-    // setCode(newCode);
 
     socket.emit("codeChange", {
       battleId: id,

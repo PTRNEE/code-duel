@@ -8,41 +8,40 @@ datasource db {
 }
 
 model User {
-  id        String   @id @default(uuid())
-  username  String   @unique
-  createdAt DateTime @default(now())
-
+  id          String       @id @default(uuid())
+  username    String
+  battles     Battle[]
   submissions Submission[]
+  createdAt   DateTime     @default(now())
 }
 
 model Battle {
-  id          String   @id @default(uuid())
+  id          String       @id @default(uuid())
   title       String
-  description String
-  createdAt   DateTime @default(now())
-
-  submissions Submission[]
+  description String?
+  owner       User         @relation(fields: [ownerId], references: [id])
+  ownerId     String
   testCases   TestCase[]
+  submissions Submission[]
+  createdAt   DateTime     @default(now())
+}
+
+model TestCase {
+  id       String @id @default(uuid())
+  input    String
+  expected String
+  battle   Battle @relation(fields: [battleId], references: [id], onDelete: Cascade)
+  battleId String
 }
 
 model Submission {
   id        String   @id @default(uuid())
   code      String
-  score     Int      @default(0)
+  score     Int
+  language  String   @default("python")
+  user      User     @relation(fields: [userId], references: [id])
+  userId    String
+  battle    Battle   @relation(fields: [battleId], references: [id])
+  battleId  String
   createdAt DateTime @default(now())
-
-  user     User   @relation(fields: [userId], references: [id])
-  userId   String
-
-  battle   Battle @relation(fields: [battleId], references: [id])
-  battleId String
-}
-
-model TestCase {
-  id        String @id @default(uuid())
-  input     String
-  expected  String
-
-  battle   Battle @relation(fields: [battleId], references: [id])
-  battleId String
 }

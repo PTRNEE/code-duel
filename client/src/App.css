@@ -40,3 +40,15 @@
 .read-the-docs {
   color: #888;
 }
+
+.remoteCursor {
+  border-left: 2px solid red;
+}
+
+.remoteCursorLabel::after {
+  content: "Opponent";
+  background: red;
+  color: white;
+  padding: 2px 4px;
+  font-size: 10px;
+}

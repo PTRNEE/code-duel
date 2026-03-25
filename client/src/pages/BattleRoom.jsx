@@ -95,7 +95,7 @@ function BattleRoom() {
   };
 
   useEffect(() => {
-    fetch(`http://localhost:3000/battles/${id}`)
+    fetch(`${import.meta.env.VITE_API_URL}/battles/${id}`)
       .then((r) => r.json())
       .then((d) => d && setBattleTitle(d.title));
 
@@ -218,7 +218,7 @@ function BattleRoom() {
     setRunning(true);
     setOutput("");
     try {
-      const res = await fetch("http://localhost:3000/run", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/run`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ code, input, language }),

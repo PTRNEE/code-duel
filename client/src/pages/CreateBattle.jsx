@@ -12,7 +12,7 @@ export default function CreateBattle() {
     if (!title.trim()) return alert("Please enter a battle title.");
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:3000/battle", {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/battle`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, description, ownerId: playerId }),

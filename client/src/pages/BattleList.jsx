@@ -8,7 +8,7 @@ function BattleList() {
   const [loading, setLoading] = useState(true);
 
   const fetchBattles = () => {
-    fetch("http://localhost:3000/battles")
+    fetch(`${import.meta.env.VITE_API_URL}/battles`)
       .then((res) => res.json())
       .then((data) => {
         setBattles(data);
@@ -39,7 +39,7 @@ function BattleList() {
   const deleteBattle = async (id, e) => {
     e.stopPropagation();
     if (!confirm("Delete this battle room?")) return;
-    await fetch(`http://localhost:3000/battle/${id}`, {
+    await fetch(`${import.meta.env.VITE_API_URL}/battle/${id}`, {
       method: "DELETE",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ownerId: playerId }),

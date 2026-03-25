@@ -10,7 +10,7 @@ function RoleSelect() {
   const [battleTitle, setBattleTitle] = useState("");
 
   useEffect(() => {
-    fetch(`http://localhost:3000/battles/${id}`)
+    fetch(`${import.meta.env.VITE_API_URL}/battles/${id}`)
       .then((r) => r.json())
       .then((d) => d && setBattleTitle(d.title));
 

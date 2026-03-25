@@ -6,7 +6,7 @@ function Leaderboard() {
   const [data, setData] = useState([]);
 
   useEffect(() => {
-    fetch(`http://localhost:3000/leaderboard/${id}`)
+    fetch(`${import.meta.env.VITE_API_URL}/leaderboard/${id}`)
       .then((res) => res.json())
       .then((result) => setData(result));
   }, [id]);

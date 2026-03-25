@@ -9,7 +9,7 @@ const playerId = (() => {
   return id;
 })();
 
-export const socket = io("http://localhost:3000", {
+export const socket = io(import.meta.env.VITE_API_URL, {
   transports: ["websocket"],
   auth: { playerId },
 });

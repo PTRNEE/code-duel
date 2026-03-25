@@ -12,15 +12,19 @@ const prisma = new PrismaClient();
 
 const app = express();
 const server = http.createServer(app);
+const io = new Server(server, { cors: { origin: "*" } });
 
-const io = new Server(server, {
-  cors: { origin: "*" },
-});
-
-// battleRooms: { [battleId]: { owner, player1, player2, spectators, timeLeft, timerRunning, finished, duration } }
+// battleRooms[battleId] = {
+//   owner: playerId (string),
+//   player1: playerId | null,       ← เก็บ playerId ไม่ใช่ socket.id
+//   player2: playerId | null,
+//   spectators: Map<playerId, socketId>,  ← Map แทน Set เพื่อ dedup ต่อ player
+//   player1SocketId: socketId | null,
+//   player2SocketId: socketId | null,
+//   ...state
+// }
 const battleRooms = {};
 
-// roomCounts: { [battleId]: { player1: 0|1, player2: 0|1, spectators: number } }
 const getRoomCounts = (battleId) => {
   const room = battleRooms[battleId];
   if (!room) return { player1: 0, player2: 0, spectators: 0 };
@@ -33,78 +37,92 @@ const getRoomCounts = (battleId) => {
 
 const broadcastRoomCounts = () => {
   const counts = {};
-  for (const battleId in battleRooms) {
-    counts[battleId] = getRoomCounts(battleId);
-  }
+  for (const battleId in battleRooms) counts[battleId] = getRoomCounts(battleId);
   io.emit("allRoomCounts", counts);
+};
+
+const broadcastBattleList = async () => {
+  try {
+    const battles = await prisma.battle.findMany({ include: { owner: true } });
+    io.emit("battleListUpdate", battles.map((b) => ({ ...b, counts: getRoomCounts(b.id) })));
+  } catch (err) { console.error("broadcastBattleList error:", err); }
 };
 
 io.on("connection", (socket) => {
   const playerId = socket.handshake.auth.playerId;
   socket.playerId = playerId;
 
-  // Send current room counts on connect
-  socket.emit("allRoomCounts", (() => {
-    const counts = {};
-    for (const battleId in battleRooms) counts[battleId] = getRoomCounts(battleId);
-    return counts;
-  })());
+  // ส่ง counts ปัจจุบันให้ client ใหม่ทันที
+  const currentCounts = {};
+  for (const battleId in battleRooms) currentCounts[battleId] = getRoomCounts(battleId);
+  socket.emit("allRoomCounts", currentCounts);
 
   socket.on("joinBattle", async ({ battleId, role }) => {
+    // สร้าง room ถ้ายังไม่มี
     if (!battleRooms[battleId]) {
       const battle = await prisma.battle.findUnique({ where: { id: battleId } });
       if (!battle) { socket.emit("battleNotFound"); return; }
       battleRooms[battleId] = {
         owner: battle.ownerId,
-        player1: null,
-        player2: null,
-        spectators: new Set(),
-        timeLeft: null,
-        timerRunning: false,
-        finished: false,
-        duration: null,
-        player1Code: "",
-        player2Code: "",
-        player1Output: null,
-        player2Output: null,
+        player1: null,           // playerId
+        player2: null,           // playerId
+        player1SocketId: null,   // socket.id ปัจจุบัน
+        player2SocketId: null,
+        spectators: new Map(),   // Map<playerId, socketId>
+        timeLeft: null, timerRunning: false, finished: false, duration: null,
+        player1Code: "", player2Code: "",
+        player1Output: null, player2Output: null,
       };
     }
 
     const room = battleRooms[battleId];
-    socket.emit("ownerUpdate", room.owner);
 
+    // ถ้า player เคยอยู่ในห้องนี้แล้ว (reconnect/reload) → ให้เข้าได้เลย
     if (role === "player1") {
-      if (room.player1 && room.player1 !== socket.id) { socket.emit("roleTaken"); return; }
-      room.player1 = socket.id;
+      if (room.player1 && room.player1 !== playerId) {
+        socket.emit("roleTaken"); return;
+      }
+      // ถ้าเคยเป็น spectator → ออกจาก spectators ก่อน
+      room.spectators.delete(playerId);
+      room.player1 = playerId;
+      room.player1SocketId = socket.id;
     } else if (role === "player2") {
-      if (room.player2 && room.player2 !== socket.id) { socket.emit("roleTaken"); return; }
-      room.player2 = socket.id;
+      if (room.player2 && room.player2 !== playerId) {
+        socket.emit("roleTaken"); return;
+      }
+      room.spectators.delete(playerId);
+      room.player2 = playerId;
+      room.player2SocketId = socket.id;
     } else {
-      room.spectators.add(socket.id);
+      // spectator: ถ้า playerId เดิมเข้ามาใหม่ → update socketId (dedup อัตโนมัติ)
+      // แต่ถ้า playerId นั้นเป็น player1/player2 อยู่แล้ว → ไม่นับซ้ำเป็น spectator
+      if (room.player1 !== playerId && room.player2 !== playerId) {
+        room.spectators.set(playerId, socket.id);
+      }
     }
 
     socket.currentBattle = battleId;
     socket.currentRole = role;
     socket.join(battleId);
 
+    socket.emit("ownerUpdate", room.owner);
     socket.emit("timerUpdate", room.timeLeft);
     socket.emit("roomUpdate", { ...room, spectators: room.spectators.size });
-    socket.emit("battleStatus", {
-      started: room.timerRunning || room.finished,
-      finished: room.finished,
-    });
-
-    // Send existing code to new joiner
+    socket.emit("battleStatus", { started: room.timerRunning || room.finished, finished: room.finished });
     socket.emit("codeUpdate", { player: "player1", code: room.player1Code });
     socket.emit("codeUpdate", { player: "player2", code: room.player2Code });
 
-    // Send existing outputs to spectator
     if (role === "spectator") {
       if (room.player1Output) socket.emit("runResult", { player: "player1", ...room.player1Output });
       if (room.player2Output) socket.emit("runResult", { player: "player2", ...room.player2Output });
     }
 
     io.to(battleId).emit("roomUpdate", { ...room, spectators: room.spectators.size });
+    broadcastRoomCounts();
+  });
+
+  socket.on("leaveBattle", ({ battleId }) => {
+    cleanupSocketFromRoom(socket, battleId);
     broadcastRoomCounts();
   });
 
@@ -134,6 +152,19 @@ io.on("connection", (socket) => {
     io.to(battleId).emit("timerReset", room.timeLeft);
   });
 
+  socket.on("resetRoom", ({ battleId }) => {
+    const room = battleRooms[battleId];
+    if (!room || socket.playerId !== room.owner) return;
+    room.finished = false;
+    room.timerRunning = false;
+    room.timeLeft = null;
+    room.player1Code = "";
+    room.player2Code = "";
+    room.player1Output = null;
+    room.player2Output = null;
+    io.to(battleId).emit("roomReset");
+  });
+
   socket.on("codeUpdate", ({ battleId, player, code }) => {
     const room = battleRooms[battleId];
     if (room) {
@@ -152,12 +183,37 @@ io.on("connection", (socket) => {
     socket.to(battleId).emit("runResult", { player, input, output });
   });
 
-  socket.on("finishBattle", ({ battleId, player }) => {
+  socket.on("submitCode", async ({ battleId, player, code, language, userId }) => {
     const room = battleRooms[battleId];
     if (!room || room.finished) return;
-    room.finished = true;
-    room.timerRunning = false;
-    io.to(battleId).emit("battleFinished", player);
+    try {
+      const battle = await prisma.battle.findUnique({ where: { id: battleId }, include: { testCases: true } });
+      if (!battle || battle.testCases.length === 0) {
+        room.finished = true;
+        room.timerRunning = false;
+        if (userId) await prisma.submission.create({ data: { code, score: 0, language: language || "python", userId, battleId } }).catch(() => {});
+        io.to(battleId).emit("battleFinished", player);
+        return;
+      }
+      let passed = 0;
+      for (const test of battle.testCases) {
+        const result = await runCode(code, test.input, language || "python");
+        if (result.trim() === test.expected.trim()) passed++;
+      }
+      const total = battle.testCases.length;
+      if (userId) await prisma.submission.create({ data: { code, score: passed, language: language || "python", userId, battleId } }).catch(() => {});
+      if (passed === total) {
+        room.finished = true;
+        room.timerRunning = false;
+        socket.emit("submitResult", { passed, total, success: true });
+        io.to(battleId).emit("battleFinished", player);
+      } else {
+        socket.emit("submitResult", { passed, total, success: false });
+      }
+    } catch (err) {
+      console.error("submitCode error:", err);
+      socket.emit("submitResult", { passed: 0, total: 0, success: false, error: "Server error" });
+    }
   });
 
   socket.on("cursorMove", ({ battleId, player, position }) => {
@@ -165,18 +221,44 @@ io.on("connection", (socket) => {
   });
 
   socket.on("disconnect", () => {
+    // หา room ที่ socket นี้อยู่ แล้วลบออก
     for (const battleId in battleRooms) {
-      const room = battleRooms[battleId];
-      if (room.player1 === socket.id) room.player1 = null;
-      if (room.player2 === socket.id) room.player2 = null;
-      if (room.spectators) room.spectators.delete(socket.id);
-      io.to(battleId).emit("roomUpdate", { ...room, spectators: room.spectators.size });
+      cleanupSocketFromRoom(socket, battleId);
     }
     broadcastRoomCounts();
   });
 });
 
-// Timer tick
+// แยก cleanup ออกมาใช้ร่วมกันระหว่าง disconnect และ leaveBattle
+function cleanupSocketFromRoom(socket, battleId) {
+  const room = battleRooms[battleId];
+  if (!room) return;
+
+  const playerId = socket.playerId;
+  let changed = false;
+
+  if (room.player1 === playerId && room.player1SocketId === socket.id) {
+    room.player1 = null;
+    room.player1SocketId = null;
+    changed = true;
+  }
+  if (room.player2 === playerId && room.player2SocketId === socket.id) {
+    room.player2 = null;
+    room.player2SocketId = null;
+    changed = true;
+  }
+  // spectator: ลบเฉพาะถ้า socketId ตรงกัน (ป้องกัน reconnect ลบของใหม่)
+  const specSocketId = room.spectators.get(playerId);
+  if (specSocketId === socket.id) {
+    room.spectators.delete(playerId);
+    changed = true;
+  }
+
+  if (changed) {
+    io.to(battleId).emit("roomUpdate", { ...room, spectators: room.spectators.size });
+  }
+}
+
 setInterval(() => {
   for (const battleId in battleRooms) {
     const room = battleRooms[battleId];
@@ -197,48 +279,27 @@ app.use(express.json());
 
 app.get("/", (req, res) => res.send("CodeDuel API is running 🚀"));
 
-// GET all battles with room counts
 app.get("/battles", async (req, res) => {
   try {
     const battles = await prisma.battle.findMany({ include: { owner: true } });
-    const battlesWithCounts = battles.map((b) => ({
-      ...b,
-      counts: getRoomCounts(b.id),
-    }));
-    res.json(battlesWithCounts);
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Failed to fetch battles" });
-  }
+    res.json(battles.map((b) => ({ ...b, counts: getRoomCounts(b.id) })));
+  } catch { res.status(500).json({ error: "Failed to fetch battles" }); }
 });
 
-// GET battle by ID
 app.get("/battles/:id", async (req, res) => {
   try {
-    const battle = await prisma.battle.findUnique({
-      where: { id: req.params.id },
-      include: { testCases: true },
-    });
+    const battle = await prisma.battle.findUnique({ where: { id: req.params.id }, include: { testCases: true } });
     res.json(battle);
-  } catch {
-    res.status(500).json({ error: "Failed to fetch battle" });
-  }
+  } catch { res.status(500).json({ error: "Failed to fetch battle" }); }
 });
 
-// Create battle
 app.post("/battle", async (req, res) => {
   const { title, description, ownerId } = req.body;
   if (!ownerId) return res.status(400).json({ error: "ownerId required" });
   try {
-    // Upsert user so owner always exists
-    await prisma.user.upsert({
-      where: { id: ownerId },
-      update: {},
-      create: { id: ownerId, username: "Player_" + ownerId.slice(0, 6) },
-    });
-    const battle = await prisma.battle.create({
-      data: { title, description, ownerId },
-    });
+    await prisma.user.upsert({ where: { id: ownerId }, update: {}, create: { id: ownerId, username: "Player_" + ownerId.slice(0, 6) } });
+    const battle = await prisma.battle.create({ data: { title, description, ownerId } });
+    await broadcastBattleList();
     res.json(battle);
   } catch (error) {
     console.error(error);
@@ -246,7 +307,6 @@ app.post("/battle", async (req, res) => {
   }
 });
 
-// Delete battle
 app.delete("/battle/:id", async (req, res) => {
   const { id } = req.params;
   const { ownerId } = req.body;
@@ -255,8 +315,8 @@ app.delete("/battle/:id", async (req, res) => {
     if (!battle) return res.status(404).json({ error: "Battle not found" });
     if (battle.ownerId !== ownerId) return res.status(403).json({ error: "Not owner" });
     await prisma.battle.delete({ where: { id } });
-    // Clean up room
     delete battleRooms[id];
+    await broadcastBattleList();
     broadcastRoomCounts();
     res.json({ success: true });
   } catch (err) {
@@ -265,60 +325,23 @@ app.delete("/battle/:id", async (req, res) => {
   }
 });
 
-// Run code
 app.post("/run", async (req, res) => {
   const { code, input, language } = req.body;
   try {
     const result = await runCode(code, input, language || "python");
     res.json({ output: result });
-  } catch (err) {
-    res.status(500).json({ output: "ERROR: " + err.message });
-  }
+  } catch (err) { res.status(500).json({ output: "ERROR: " + err.message }); }
 });
 
-// Submit code
-app.post("/submit", async (req, res) => {
-  const { userId, battleId, code, language } = req.body;
+app.post("/battle/:id/testcase", async (req, res) => {
+  const { id } = req.params;
+  const { input, expected } = req.body;
   try {
-    const battle = await prisma.battle.findUnique({
-      where: { id: battleId },
-      include: { testCases: true },
-    });
-    if (!battle) return res.status(404).json({ error: "Battle not found" });
-
-    let score = 0;
-    for (const test of battle.testCases) {
-      const result = await runCode(code, test.input, language || "python");
-      if (result.trim() === test.expected.trim()) score++;
-    }
-
-    const submission = await prisma.submission.create({
-      data: { code, score, userId, battleId },
-    });
-
-    res.json({ score, total: battle.testCases.length });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ error: "Submission failed" });
-  }
+    const testCase = await prisma.testCase.create({ data: { input, expected, battleId: id } });
+    res.json(testCase);
+  } catch { res.status(500).json({ error: "Failed to create test case" }); }
 });
 
-// Create user
-app.post("/users", async (req, res) => {
-  const { id, username } = req.body;
-  try {
-    const user = await prisma.user.upsert({
-      where: { id },
-      update: { username },
-      create: { id, username },
-    });
-    res.json(user);
-  } catch (error) {
-    res.status(500).json({ error: "Create user failed" });
-  }
-});
-
-// Leaderboard
 app.get("/leaderboard/:battleId", async (req, res) => {
   try {
     const leaderboard = await prisma.submission.groupBy({
@@ -328,58 +351,39 @@ app.get("/leaderboard/:battleId", async (req, res) => {
       orderBy: { _max: { score: "desc" } },
     });
     res.json(leaderboard);
-  } catch (error) {
-    res.status(500).json({ error: "Failed to fetch leaderboard" });
-  }
+  } catch { res.status(500).json({ error: "Failed to fetch leaderboard" }); }
 });
 
-// Run code helper - supports Python and Java
 function runCode(code, input, language) {
-  return new Promise((resolve, reject) => {
-    let filePath, command, args;
-
+  return new Promise((resolve) => {
     if (language === "java") {
       const dir = path.join(process.cwd(), "tmp_java_" + Date.now());
       fs.mkdirSync(dir, { recursive: true });
-      // Extract class name
       const match = code.match(/public\s+class\s+(\w+)/);
       const className = match ? match[1] : "Main";
-      filePath = path.join(dir, `${className}.java`);
+      const filePath = path.join(dir, `${className}.java`);
       fs.writeFileSync(filePath, code);
-
-      // Compile first
       const compile = spawn("javac", [filePath]);
       let compileErr = "";
       compile.stderr.on("data", (d) => (compileErr += d.toString()));
-      compile.on("close", (code) => {
-        if (code !== 0) {
-          fs.rmSync(dir, { recursive: true, force: true });
-          return resolve("COMPILE ERROR:\n" + compileErr);
-        }
-        // Run
+      compile.on("close", (exitCode) => {
+        if (exitCode !== 0) { fs.rmSync(dir, { recursive: true, force: true }); return resolve("COMPILE ERROR:\n" + compileErr); }
         const run = spawn("java", ["-cp", dir, className]);
         let out = "", err = "";
-        if (input) { run.stdin.write(input); run.stdin.end(); }
+        if (input) { run.stdin.write(input); run.stdin.end(); } else run.stdin.end();
         run.stdout.on("data", (d) => (out += d.toString()));
         run.stderr.on("data", (d) => (err += d.toString()));
-        run.on("close", () => {
-          fs.rmSync(dir, { recursive: true, force: true });
-          resolve(err ? "RUNTIME ERROR:\n" + err : out);
-        });
+        run.on("close", () => { fs.rmSync(dir, { recursive: true, force: true }); resolve(err ? "RUNTIME ERROR:\n" + err : out); });
       });
     } else {
-      // Python
-      filePath = path.join(process.cwd(), "temp_" + Date.now() + ".py");
+      const filePath = path.join(process.cwd(), "temp_" + Date.now() + ".py");
       fs.writeFileSync(filePath, code);
       const py = spawn("python3", [filePath]);
       let out = "", err = "";
-      if (input) { py.stdin.write(input); py.stdin.end(); }
+      if (input) { py.stdin.write(input); py.stdin.end(); } else py.stdin.end();
       py.stdout.on("data", (d) => (out += d.toString()));
       py.stderr.on("data", (d) => (err += d.toString()));
-      py.on("close", () => {
-        try { fs.unlinkSync(filePath); } catch {}
-        resolve(err ? "ERROR:\n" + err : out);
-      });
+      py.on("close", () => { try { fs.unlinkSync(filePath); } catch {} resolve(err ? "ERROR:\n" + err : out); });
     }
   });
 }

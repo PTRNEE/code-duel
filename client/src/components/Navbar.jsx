@@ -1,20 +1,32 @@
 import { useContext } from "react";
-import { Link } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { ThemeContext } from "../context/ThemeContext";
 
 function Navbar() {
   const { theme, toggleTheme } = useContext(ThemeContext);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  // กด CodeDuel → กลับหน้าแรกเสมอ (เหมือน Back to Rooms)
+  const goHome = () => navigate("/");
 
   return (
     <nav className="navbar">
-      <Link to="/" className="navbar-brand">
+      <button
+        className="navbar-brand"
+        onClick={goHome}
+        style={{ background: "none", border: "none", cursor: "pointer", padding: 0 }}
+      >
         <span className="flame">⚔️</span>
         CodeDuel
-      </Link>
+      </button>
       <div className="navbar-actions">
-        <Link to="/create" className="btn btn-primary btn-sm">
-          + New Battle
-        </Link>
+        {/* ซ่อน "+ New Battle" เมื่ออยู่ในหน้า create แล้ว */}
+        {location.pathname !== "/create" && (
+          <button className="btn btn-primary btn-sm" onClick={() => navigate("/create")}>
+            + New Battle
+          </button>
+        )}
         <button className="btn btn-ghost btn-sm btn-icon" onClick={toggleTheme} title="Toggle theme">
           {theme === "dark" ? "☀️" : "🌙"}
         </button>

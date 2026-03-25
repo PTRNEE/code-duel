@@ -1,12 +1,11 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { socket, playerId } from "../socket";
 
 function BattleList() {
   const [battles, setBattles] = useState([]);
   const [roomCounts, setRoomCounts] = useState({});
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
 
   const fetchBattles = () => {
     fetch("http://localhost:3000/battles")
@@ -21,12 +20,19 @@ function BattleList() {
   useEffect(() => {
     fetchBattles();
 
+    // รับ room counts แบบ realtime
     socket.on("allRoomCounts", (counts) => {
       setRoomCounts(counts);
     });
 
+    // รับ battle list update แบบ realtime (สร้าง/ลบห้อง)
+    socket.on("battleListUpdate", (updatedBattles) => {
+      setBattles(updatedBattles);
+    });
+
     return () => {
       socket.off("allRoomCounts");
+      socket.off("battleListUpdate");
     };
   }, []);
 
@@ -38,10 +44,10 @@ function BattleList() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ownerId: playerId }),
     });
-    setBattles(battles.filter((b) => b.id !== id));
+    // ไม่ต้อง setBattles เพราะ server จะ broadcast battleListUpdate มาเอง
   };
 
-  const counts = (id) => roomCounts[id] || { player1: 0, player2: 0, spectators: 0 };
+  const counts = (id) => roomCounts[id] || battles.find(b => b.id === id)?.counts || { player1: 0, player2: 0, spectators: 0 };
   const totalOnline = (id) => {
     const c = counts(id);
     return c.player1 + c.player2 + c.spectators;

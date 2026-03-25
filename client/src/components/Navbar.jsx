@@ -21,12 +21,6 @@ function Navbar() {
         CodeDuel
       </button>
       <div className="navbar-actions">
-        {/* ซ่อน "+ New Battle" เมื่ออยู่ในหน้า create แล้ว */}
-        {location.pathname !== "/create" && (
-          <button className="btn btn-primary btn-sm" onClick={() => navigate("/create")}>
-            + New Battle
-          </button>
-        )}
         <button className="btn btn-ghost btn-sm btn-icon" onClick={toggleTheme} title="Toggle theme">
           {theme === "dark" ? "☀️" : "🌙"}
         </button>

@@ -82,7 +82,7 @@ export default function CreateBattle() {
           setSaveProgress((prev) => ({ ...prev, done: prev.done + 1 }));
         }
 
-        setSaveingCases(false);
+        setSavingCases(false);
       }
 
       // นำผู้ใช้ไปที่ห้องรอของ battle ที่สร้างใหม่

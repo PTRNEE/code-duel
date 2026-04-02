@@ -61,7 +61,7 @@ export default function CreateBattle() {
         for (let i = 0; i < validCases.length; i++) {
           const tc = validCases[i];
 
-          const tcRes = await fetch(`${import.meta.env.VITE_API_URL}/battle/${battleId}/testcases`, {
+          const tcRes = await fetch(`${import.meta.env.VITE_API_URL}/battle/${battleId}/testcase`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({

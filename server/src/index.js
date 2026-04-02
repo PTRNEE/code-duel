@@ -143,6 +143,13 @@ io.on("connection", (socket) => {
     io.to(battleId).emit("timerStopped");
   });
 
+  socket.on("resumeTimer", ({ battleId }) => {
+    const room = battleRooms[battleId];
+    if (!room || socket.playerId !== room.owner) return;
+    room.timerRunning = true;
+    io.to(battleId).emit("timerResumed");
+  });
+
   socket.on("resetTimer", ({ battleId, duration }) => {
     const room = battleRooms[battleId];
     if (!room || socket.playerId !== room.owner) return;

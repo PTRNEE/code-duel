@@ -141,6 +141,11 @@ function BattleRoom() {
       showNotif("⏸ Timer paused", "info");
     });
 
+    socket.on("timerResumed", () => {
+      setTimerRunning(true);
+      showNotif("▶ Timer resumed", "info");
+    });
+
     socket.on("timerReset", (time) => {
       setTimeLeft(time);
       setTimerRunning(false);
@@ -192,6 +197,7 @@ function BattleRoom() {
       socket.off("battleStarted");
       socket.off("timerUpdate");
       socket.off("timerStopped");
+      socket.off("timerResumed");
       socket.off("timerReset");
       socket.off("battleEnded");
       socket.off("battleFinished");
@@ -266,6 +272,7 @@ function BattleRoom() {
 
   const startBattle = () => socket.emit("startBattle", { battleId: id, duration: duration || null });
   const stopTimer = () => socket.emit("stopTimer", { battleId: id });
+  const resumeTimer = () => socket.emit("resumeTimer", { battleId: id });
   const resetTimer = () => socket.emit("resetTimer", { battleId: id, duration: duration || null });
 
   const myCode = role === "player1" ? player1Code : player2Code;
@@ -451,7 +458,7 @@ function BattleRoom() {
             <button className="btn btn-primary btn-sm" onClick={startBattle}>▶ Start Battle</button>
           ) : (
             <>
-              <button className="btn btn-secondary btn-sm" onClick={timerRunning ? stopTimer : startBattle}>
+              <button className="btn btn-secondary btn-sm" onClick={timerRunning ? stopTimer : resumeTimer}>
                 {timerRunning ? "⏸ Pause" : "▶ Resume"}
               </button>
               <button className="btn btn-ghost btn-sm" onClick={resetTimer}>🔄 Reset Timer</button>

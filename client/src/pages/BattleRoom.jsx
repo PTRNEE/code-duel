@@ -166,10 +166,10 @@ function BattleRoom() {
       setSubmitting(false);
       if (success) {
         setSubmitted(true);
-        showNotif(`✅ ผ่านทุก test case (${passed}/${total}) — คุณชนะ!`, "success");
+        showNotif(`✅ Passed all test cases (${passed}/${total}) - You win!`, "success");
       } else {
         setSubmitResult({ passed, total, success: false });
-        showNotif(`❌ ผ่าน ${passed}/${total} test cases — ลองแก้โค้ดใหม่`, "error");
+        showNotif(`❌ Failed ${passed}/${total} test cases - Try improving your code`, "error");
       }
     });
 

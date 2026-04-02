@@ -10,6 +10,9 @@ export default function CreateBattle() {
 
   const [loading, setLoading] = useState(false);
 
+  const [savingCases, setSavingCases] = useState(false);
+  const [saveProgress, setSaveProgress] = useState({ done: 0, total: 0 });
+  
   const [testCases, setTestCases] = useState([{ input: "", expected: "" }]);
 
   const addTestCase = () => {
@@ -36,6 +39,13 @@ export default function CreateBattle() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title, description, ownerId: playerId }),
       });
+
+      // ตรวจ HTTP status ก่อน parse JSON
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || `Server error ${res.status}`);
+      }
+
       const data = await res.json();
       if (data.error) throw new Error(data.error);
 
@@ -43,25 +53,55 @@ export default function CreateBattle() {
 
       // บันทึก test cases ที่มี expected value
       const validCases = testCases.filter((tc) => tc.expected.trim() !== "");
-      await Promise.all(
-        validCases.map((tc) =>
-          fetch(`${import.meta.env.VITE_API_URL}/battle/${battleId}/test-cases`, {
+      
+      if (validCases.length > 0) {
+        setSavingCases(true);
+        setSaveProgress({ done: 0, total: validCases.length }); 
+
+        for (let i = 0; i < validCases.length; i++) {
+          const tc = validCases[i];
+
+          const tcRes = await fetch(`${import.meta.env.VITE_API_URL}/battle/${battleId}/test-cases`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               input: tc.input,
               expected: tc.expected,
             }),
-          })
-        )
-      );
+          });
 
+          // ตรวจ HTTP status ของแต่ละ test case และหยุดถ้าเจอ error
+          if (!tcRes.ok) {
+            const errBody = await tcRes.json().catch(() => ({}));
+            throw new Error(
+              `Test case #${i + 1} failed to save: ${errBody.error || `HTTP ${tcRes.status}`}`
+            );
+          }
+
+          // อัปเดต progress หลังบันทึกแต่ละ case สำเร็จ
+          setSaveProgress((prev) => ({ ...prev, done: prev.done + 1 }));
+        }
+
+        setSaveingCases(false);
+      }
+
+      // นำผู้ใช้ไปที่ห้องรอของ battle ที่สร้างใหม่
       navigate(`/battle/${data.id}/room?role=spectator`);
+
     } catch (err) {
       alert("Failed to create battle: " + err.message);
     } finally {
       setLoading(false);
     }
+  };
+
+  const validCount = testCases.filter((tc) => tc.expected.trim() !== "").length;
+
+  // label ปุ่ม Create แสดง progress ขณะ save
+  const btnLabel = () => {
+    if (savingCases) return `Saving test cases... (${saveProgress.done}/${saveProgress.total})`;
+    if (loading) return "Creating...";
+    return "⚔️ Create Battle Room";
   };
 
   return (
@@ -160,6 +200,8 @@ export default function CreateBattle() {
                 border: "1px solid var(--border)",
                 borderRadius: 8,
                 padding: "10px 10px",
+                opacity: loading ? 0.6 : 1,
+                transition: "opacity 0.2s",
               }}
             >
               {/* input */}
@@ -169,6 +211,7 @@ export default function CreateBattle() {
                 placeholder={`Input #${idx + 1}\n(Leave blank if no input is required)`}
                 value={tc.input}
                 onChange={(e) => updateTestCase(idx, "input", e.target.value)}
+                disabled={loading}
               />
 
               {/* expected */}
@@ -178,6 +221,7 @@ export default function CreateBattle() {
                 placeholder={`Expected #${idx + 1}\ne.g. hello or 42`}
                 value={tc.expected}
                 onChange={(e) => updateTestCase(idx, "expected", e.target.value)}
+                disabled={loading}
               />
 
               {/* remove button */}
@@ -207,20 +251,21 @@ export default function CreateBattle() {
         </div>
 
         {/* Test Case Summary */}
-        {testCases.filter((tc) => tc.expected.trim() !== "").length > 0 && (
+        {validCount > 0 && (
           <p
             style={{
               marginTop: 8,
               fontSize: "0.75rem",
-              color: "var(--green)",
+              color: savingCases ? "var(--blue, #4a9eff)" : "var(--green)",
               fontFamily: "var(--font-mono)",
+              transition: "color 0.2s",
             }}
           >
-            ✓ {testCases.filter((tc) => tc.expected.trim() !== "").length} test case
-            {testCases.filter((tc) => tc.expected.trim() !== "").length > 1 ? "s" : ""} will be saved
+            {savingCases
+              ? `⏳ กำลังบันทึก... (${saveProgress.done}/${saveProgress.total})`
+              : `✓ ${validCount} test case${validCount > 1 ? "s" : ""} will be saved`}
           </p>
         )}
-
       </div>
 
       {/* Create Battle Button */}
@@ -230,7 +275,7 @@ export default function CreateBattle() {
         disabled={loading || !title.trim()}
         style={{ width: "100%" }}
       >
-        {loading ? "Creating..." : "⚔️ Create Battle Room"}
+        {btnLabel()}
       </button>
     </div>
   );

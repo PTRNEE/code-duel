@@ -105,10 +105,11 @@ export default function CreateBattle() {
         }}>
           <label className="form-label" style={{ margin: 0 }}>
             Test Cases
+            <br />
             <span
               style={{
                 marginLeft: 8,
-                fontSize: "0.5rem",
+                fontSize: "0.7rem",
                 color: "var(--text3)",
                 fontWeight: 400,
               }}
@@ -136,10 +137,10 @@ export default function CreateBattle() {
             padding: "0 2px",
           }}
         >
-          <span style={{ fontSize: "0.5rem", color: "var(--text3)", fontFamily: "var(--font-mono)" }}>
+          <span style={{ fontSize: "0.7rem", color: "var(--text3)", fontFamily: "var(--font-mono)" }}>
             Input
           </span>
-          <span style={{ fontSize: "0.5rem", color: "var(--text3)", fontFamily: "var(--font-mono)" }}>
+          <span style={{ fontSize: "0.7rem", color: "var(--text3)", fontFamily: "var(--font-mono)" }}>
             Expected Output *
           </span>
           <span />

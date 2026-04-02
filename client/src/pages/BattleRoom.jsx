@@ -106,7 +106,7 @@ function BattleRoom() {
         if (!d) return;
         setBattleTitle(d.title);
         setBattleDescription(d.description || "");
-        setTestCaseCount(d.testCase ? d.testCase.length : 0);
+        setTestCaseCount(d.testCases ? d.testCases.length : 0);
       });
 
     socket.emit("joinBattle", { battleId: id, role });

@@ -114,7 +114,7 @@ export default function CreateBattle() {
                 fontWeight: 400,
               }}
             >
-              (Optional: If there is none, it will automatically win.)
+            (Optional: If there is none, it will automatically win.)
             </span>
           </label>
           <button

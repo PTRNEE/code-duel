@@ -188,6 +188,9 @@ io.on("connection", (socket) => {
     if (!room || room.finished) return;
     try {
       const battle = await prisma.battle.findUnique({ where: { id: battleId }, include: { testCases: true } });
+      
+      console.log("Battle testCases count:", battle?.testCases?.length);
+
       if (!battle || battle.testCases.length === 0) {
         room.finished = true;
         room.timerRunning = false;

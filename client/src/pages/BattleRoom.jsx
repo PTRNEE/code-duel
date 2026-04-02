@@ -16,6 +16,11 @@ function BattleRoom() {
 
   const [owner, setOwner] = useState(null);
   const [battleTitle, setBattleTitle] = useState("");
+  const [battleDescription, setBattleDescription] = useState("");
+  const [testCaseCount, setTestCaseCount] = useState(null);
+
+  const [showInfo, setShowInfo] = useState(false);
+  
   const isOwner = playerId === owner;
 
   const [player1Code, setPlayer1Code] = useState(DEFAULT_CODE.python);
@@ -97,7 +102,12 @@ function BattleRoom() {
   useEffect(() => {
     fetch(`${import.meta.env.VITE_API_URL}/battles/${id}`)
       .then((r) => r.json())
-      .then((d) => d && setBattleTitle(d.title));
+      .then((d) => {
+        if (!d) return;
+        setBattleTitle(d.title);
+        setBattleDescription(d.description || "");
+        setTestCaseCount(d.testCase ? d.testCase.length : 0);
+      });
 
     socket.emit("joinBattle", { battleId: id, role });
 
@@ -173,7 +183,7 @@ function BattleRoom() {
       navigate("/");
     });
 
-    // cleanup: ลบ listeners เมื่อ unmount (React StrictMode / navigate ออก)
+    // cleanup
     return () => {
       socket.off("ownerUpdate");
       socket.off("codeUpdate");
@@ -276,19 +286,44 @@ function BattleRoom() {
       {/* Header */}
       <div className="room-header">
         <div className="room-header-left">
-          <span style={{ fontWeight: 700, fontSize: "0.95rem" }}>{battleTitle || "Battle Room"}</span>
+          <button
+            className="btn btn-ghost"
+            onClick={() => setShowInfo((v) => !v)}
+            style={{
+              fontWeight: 700,
+              fontSize: "0.95rem",
+              padding: "2px 6px",
+              display: "flex",
+              alignItems: "center",
+              gap: 5,
+            }}
+            title={showInfo ? "Hide details" : "Show details"}
+          >
+            {battleTitle || "Battle Room"}
+            <span style={{ fontSize: "0.7rem", opacity: 0.5 }}>{showInfo ? "▲" : "▼"}</span>
+          </button>
+          
           <div className={`timer-display ${getTimerClass()}`}>{formatTime(timeLeft)}</div>
           {!battleStarted && (
-            <span style={{ fontSize: "0.75rem", color: "var(--text3)", fontFamily: "var(--font-mono)" }}>Waiting to start...</span>
+            <span style={{ fontSize: "0.75rem", color: "var(--text3)", fontFamily: "var(--font-mono)" }}>
+              Waiting to start...
+            </span>
           )}
           {battleStarted && timerRunning && (
-            <span style={{ fontSize: "0.75rem", color: "var(--green)", fontFamily: "var(--font-mono)" }}>● LIVE</span>
+            <span style={{ fontSize: "0.75rem", color: "var(--green)", fontFamily: "var(--font-mono)" }}>
+              ● LIVE
+            </span>
           )}
         </div>
 
         <div className="room-header-right">
           {isPlayer && (
-            <select className="lang-select" value={language} onChange={(e) => setLanguage(e.target.value)} disabled={submitted}>
+            <select 
+              className="lang-select" 
+              value={language} 
+              onChange={(e) => setLanguage(e.target.value)} 
+              disabled={submitted}
+            >
               <option value="python">Python</option>
               <option value="java">Java</option>
             </select>
@@ -312,11 +347,91 @@ function BattleRoom() {
         </div>
       </div>
 
+      {/* Info Panel */}
+      {showInfo && (
+        <div
+          style={{
+            padding: "10px 20px 12px",
+            borderBottom: "1px solid var(--border)",
+            background: "var(--surface)",
+            display: "flex",
+            flexDirection: "column",
+            gap: 6,
+          }}
+        >
+          {/* description */}
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
+            <span
+              style={{
+                fontSize: "0.72rem",
+                fontFamily: "var(--font-mono)",
+                color: "var(--text3)",
+                minWidth: 90,
+                paddingTop: 1,
+              }}
+            >
+              Description
+            </span>
+            <span style={{ fontSize: "0.85rem", color: "var(--text)", lineHeight: 1.5 }}>
+              {battleDescription
+                ? battleDescription
+                : <span style={{ color: "var(--text3)", fontStyle: "italic" }}>No description provided</span>
+              }
+            </span>
+          </div>
+
+          {/* test case count */}
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <span
+              style={{
+                fontSize: "0.72rem",
+                fontFamily: "var(--font-mono)",
+                color: "var(--text3)",
+                minWidth: 90,
+              }}
+            >
+              Test Cases
+            </span>
+            {testCaseCount === null ? (
+              <span style={{ fontSize: "0.8rem", color: "var(--text3)" }}>Loading...</span>
+            ) : testCaseCount === 0 ? (
+              <span
+                style={{
+                  fontSize: "0.78rem",
+                  background: "rgba(255,200,0,0.12)",
+                  color: "var(--yellow, #c8a000)",
+                  border: "1px solid rgba(255,200,0,0.25)",
+                  borderRadius: 5,
+                  padding: "1px 8px",
+                  fontFamily: "var(--font-mono)",
+                }}
+              >
+                ⚠ No test cases - auto win on submit
+              </span>
+            ) : (
+              <span
+                style={{
+                  fontSize: "0.78rem",
+                  background: "rgba(0,200,100,0.1)",
+                  color: "var(--green)",
+                  border: "1px solid rgba(0,200,100,0.2)",
+                  borderRadius: 5,
+                  padding: "1px 8px",
+                  fontFamily: "var(--font-mono)",
+                }}
+              >
+                ✓ {testCaseCount} test case{testCaseCount > 1 ? "s" : ""}
+              </span>
+            )}
+          </div>
+        </div>
+      )}
+
       {/* Submit result bar */}
       {submitResult && !submitResult.success && (
         <div style={{ padding: "8px 20px", background: "rgba(255,77,106,0.1)", borderBottom: "1px solid rgba(255,77,106,0.3)", display: "flex", alignItems: "center", gap: 12, fontSize: "0.85rem" }}>
-          <span style={{ color: "var(--red)", fontWeight: 700 }}>❌ ผ่าน {submitResult.passed}/{submitResult.total} test cases</span>
-          <span style={{ color: "var(--text2)" }}>— แก้โค้ดแล้วลอง Submit ใหม่ได้เลย</span>
+          <span style={{ color: "var(--red)", fontWeight: 700 }}>❌ Failed {submitResult.passed}/{submitResult.total} test cases</span>
+          <span style={{ color: "var(--text2)" }}>- Fix your code and try submitting again</span>
         </div>
       )}
 
@@ -324,7 +439,13 @@ function BattleRoom() {
       {isOwner && (
         <div className="owner-controls">
           <span className="owner-label">👑 Owner</span>
-          <input type="number" className="duration-input" value={duration} min={0} onChange={(e) => setDuration(Number(e.target.value))} placeholder="Seconds (0 = ∞)" />
+          <input 
+            type="number" 
+            className="duration-input" 
+            value={duration} min={0} 
+            onChange={(e) => setDuration(Number(e.target.value))} 
+            placeholder="Seconds (0 = ∞)" 
+          />
           <span style={{ fontSize: "0.75rem", color: "var(--text3)" }}>seconds</span>
           {!battleStarted ? (
             <button className="btn btn-primary btn-sm" onClick={startBattle}>▶ Start Battle</button>

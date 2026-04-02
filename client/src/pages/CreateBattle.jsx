@@ -108,7 +108,7 @@ export default function CreateBattle() {
             <span
               style={{
                 marginLeft: 8,
-                fontSize: "0.72rem",
+                fontSize: "0.5rem",
                 color: "var(--text3)",
                 fontWeight: 400,
               }}
@@ -136,10 +136,10 @@ export default function CreateBattle() {
             padding: "0 2px",
           }}
         >
-          <span style={{ fontSize: "0.72rem", color: "var(--text3)", fontFamily: "var(--font-mono)" }}>
+          <span style={{ fontSize: "0.5rem", color: "var(--text3)", fontFamily: "var(--font-mono)" }}>
             Input
           </span>
-          <span style={{ fontSize: "0.72rem", color: "var(--text3)", fontFamily: "var(--font-mono)" }}>
+          <span style={{ fontSize: "0.5rem", color: "var(--text3)", fontFamily: "var(--font-mono)" }}>
             Expected Output *
           </span>
           <span />
@@ -168,13 +168,6 @@ export default function CreateBattle() {
                 placeholder={`Input #${idx + 1}\n(Leave blank if no input is required)`}
                 value={tc.input}
                 onChange={(e) => updateTestCase(idx, "input", e.target.value)}
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "0.8rem",
-                  resize: "vertical",
-                  minHeight: 52,
-                  margin: 0,
-                }}
               />
 
               {/* expected */}
@@ -184,14 +177,6 @@ export default function CreateBattle() {
                 placeholder={`Expected #${idx + 1}\ne.g. hello or 42`}
                 value={tc.expected}
                 onChange={(e) => updateTestCase(idx, "expected", e.target.value)}
-                style={{
-                  fontFamily: "var(--font-mono)",
-                  fontSize: "0.8rem",
-                  resize: "vertical",
-                  minHeight: 52,
-                  margin: 0,
-                  borderColor: tc.expected.trim() === "" ? "var(--border)" : "var(--green)",
-                }}
               />
 
               {/* remove button */}

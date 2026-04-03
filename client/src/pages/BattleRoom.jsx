@@ -17,7 +17,7 @@ function BattleRoom() {
   const [owner, setOwner] = useState(null);
   const [battleTitle, setBattleTitle] = useState("");
   const [battleDescription, setBattleDescription] = useState("");
-  const [testCase, setTestCase] = useState(null);
+  const [testCases, setTestCases] = useState(null);
 
   const [showInfo, setShowInfo] = useState(false);
   
@@ -439,7 +439,7 @@ function BattleRoom() {
                     fontFamily: "var(--font-mono)",
                   }}
                 >
-                  ✓ {testCaseCount} test case{testCaseCount > 1 ? "s" : ""}
+                  ✓ {testCases.length} test case{testCases.length > 1 ? "s" : ""}
                 </span>
 
                 {/* Details Test Cases */}
@@ -455,7 +455,7 @@ function BattleRoom() {
                     fontFamily: "var(--font-mono)",
                     fontSize: "0.78rem",
                   }}>
-                    
+
                     {/* Input */}
                     <div>
                       <div style={{ fontSize: "0.65rem", color: "var(--text3)", marginBottom: 2 }}>

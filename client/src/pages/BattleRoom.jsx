@@ -81,6 +81,7 @@ function BattleRoom() {
 
   // navigate ออกจากห้อง พร้อม emit leaveBattle ให้ server อัปเดต counts ทันที
   const leaveRoom = (destination = "/") => {
+    if (isOwner) socket.emit("resetRoom", { battleId: id }); // ถ้าเป็น owner ออกจากห้อง -> รีเซ็ตห้องเลย
     socket.emit("leaveBattle", { battleId: id });
     navigate(destination);
   };
@@ -125,6 +126,11 @@ function BattleRoom() {
 
     socket.on("cursorMove", ({ player, position }) => {
       if (player !== role) setRemoteCursor(position);
+    });
+
+    socket.on("battleStatus", ({ started, finished: fin}) => {
+      if (started) setBattleStarted(true);
+      if (fin) setFinished(true);
     });
 
     socket.on("battleStarted", (time) => {
@@ -194,6 +200,7 @@ function BattleRoom() {
       socket.off("codeUpdate");
       socket.off("runResult");
       socket.off("cursorMove");
+      socket.off("battleStatus");
       socket.off("battleStarted");
       socket.off("timerUpdate");
       socket.off("timerStopped");
@@ -528,7 +535,7 @@ function BattleRoom() {
                 {submitted && (
                   <div className="submitted-overlay"><span>✓</span> Code Submitted & Accepted</div>
                 )}
-                <CodeEditor code={myCode} setCode={updateCode} readOnly={submitted || finished} onCursorMove={sendCursor} remoteCursor={remoteCursor} language={language} />
+                <CodeEditor code={myCode} setCode={updateCode} readOnly={submitted || finished || (!timerRunning && battleStarted)} onCursorMove={sendCursor} remoteCursor={remoteCursor} language={language} />
               </div>
               <div className="bottom-panel">
                 <div className="bottom-content">
@@ -563,13 +570,20 @@ function BattleRoom() {
             <div className="winner-badge">{modalInfo.icon}</div>
             <h2>{modalInfo.title}</h2>
             <p>{modalInfo.sub}</p>
-            <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-              <button className="btn btn-primary" onClick={() => leaveRoom("/")}>← Back to Rooms</button>
-              <button className="btn btn-ghost" onClick={reBattle}>🔄 Re-Battle</button>
+            <div style={{ display: "flex", gap: 12, justifyContent: "center", flexWrap: "wrap" }}>
+              <button className="btn btn-primary" onClick={() => leaveRoom("/")}>
+                ← Back to Rooms
+              </button>
+              <button className="btn btn-ghost" onClick={() => { setWinner(null); setTimeUp(false); }}>
+                👁 View room code
+              </button>
+              <button className="btn btn-ghost" onClick={reBattle}>
+                🔄 Re-Battle
+              </button>
             </div>
             {!isOwner && winner && (
               <p style={{ marginTop: 10, fontSize: "0.75rem", color: "var(--text3)" }}>
-                * Re-Battle จะเริ่มได้เมื่อ Owner กด Re-Battle
+                * Re-Battle will start when Owner clicks Re-Battle
               </p>
             )}
           </div>

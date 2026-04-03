@@ -17,7 +17,7 @@ function BattleRoom() {
   const [owner, setOwner] = useState(null);
   const [battleTitle, setBattleTitle] = useState("");
   const [battleDescription, setBattleDescription] = useState("");
-  const [testCaseCount, setTestCaseCount] = useState(null);
+  const [testCase, setTestCase] = useState(null);
 
   const [showInfo, setShowInfo] = useState(false);
   
@@ -107,7 +107,7 @@ function BattleRoom() {
         if (!d) return;
         setBattleTitle(d.title);
         setBattleDescription(d.description || "");
-        setTestCaseCount(d.testCases ? d.testCases.length : 0);
+        setTestCases(d.testCases || []);
       });
 
     socket.emit("joinBattle", { battleId: id, role });
@@ -395,20 +395,23 @@ function BattleRoom() {
           </div>
 
           {/* test case count */}
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <div style={{ display: "flex", gap: 8, alignItems: "flex-start" }}>
             <span
               style={{
                 fontSize: "0.72rem",
                 fontFamily: "var(--font-mono)",
                 color: "var(--text3)",
                 minWidth: 90,
+                paddingTop: 3,
               }}
             >
               Test Cases
             </span>
-            {testCaseCount === null ? (
-              <span style={{ fontSize: "0.8rem", color: "var(--text3)" }}>Loading...</span>
-            ) : testCaseCount === 0 ? (
+            {testCases === null ? (
+              <span style={{ fontSize: "0.8rem", color: "var(--text3)" }}>
+                Loading...
+              </span>
+            ) : testCases.length === 0 ? (
               <span
                 style={{
                   fontSize: "0.78rem",
@@ -423,19 +426,58 @@ function BattleRoom() {
                 ⚠ No test cases - auto win on submit
               </span>
             ) : (
-              <span
-                style={{
-                  fontSize: "0.78rem",
-                  background: "rgba(0,200,100,0.1)",
-                  color: "var(--green)",
-                  border: "1px solid rgba(0,200,100,0.2)",
-                  borderRadius: 5,
-                  padding: "1px 8px",
-                  fontFamily: "var(--font-mono)",
-                }}
-              >
-                ✓ {testCaseCount} test case{testCaseCount > 1 ? "s" : ""}
-              </span>
+              <div style={{ display: "flex", flexDirection: "column", gap: 6, flex: 1 }}>
+                {/* Test Case Count */}
+                <span
+                  style={{
+                    fontSize: "0.78rem",
+                    background: "rgba(0,200,100,0.1)",
+                    color: "var(--green)",
+                    border: "1px solid rgba(0,200,100,0.2)",
+                    borderRadius: 5,
+                    padding: "1px 8px",
+                    fontFamily: "var(--font-mono)",
+                  }}
+                >
+                  ✓ {testCaseCount} test case{testCaseCount > 1 ? "s" : ""}
+                </span>
+
+                {/* Details Test Cases */}
+                {testCases.map((tc, idx) => (
+                  <div key={tc.id || idx} style={{
+                    display: "grid",
+                    gridTemplateColumns: "1fr 1fr",
+                    gap: 6,
+                    background: "var(--bg, rgba(0,0,0,0.04))",
+                    border: "1px solid var(--border)",
+                    borderRadius: 6,
+                    padding: "7px 10px",
+                    fontFamily: "var(--font-mono)",
+                    fontSize: "0.78rem",
+                  }}>
+                    
+                    {/* Input */}
+                    <div>
+                      <div style={{ fontSize: "0.65rem", color: "var(--text3)", marginBottom: 2 }}>
+                        Case {idx + 1} · Input
+                      </div>
+                      <pre style={{ margin: 0, color: "var(--text2)", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                        {tc.input || <span style={{ color: "var(--text3)", fontStyle: "italic" }}>(ไม่มี input)</span>}
+                      </pre>
+                    </div>
+
+                    {/* Expected */}
+                    <div>
+                      <div style={{ fontSize: "0.65rem", color: "var(--text3)", marginBottom: 2 }}>
+                        Expected Output
+                      </div>
+                      <pre style={{ margin: 0, color: "var(--green)", whiteSpace: "pre-wrap", wordBreak: "break-all" }}>
+                        {tc.expected}
+                      </pre>
+                    </div>
+                  </div>
+                ))}
+              </div>
             )}
           </div>
         </div>
@@ -444,8 +486,12 @@ function BattleRoom() {
       {/* Submit result bar */}
       {submitResult && !submitResult.success && (
         <div style={{ padding: "8px 20px", background: "rgba(255,77,106,0.1)", borderBottom: "1px solid rgba(255,77,106,0.3)", display: "flex", alignItems: "center", gap: 12, fontSize: "0.85rem" }}>
-          <span style={{ color: "var(--red)", fontWeight: 700 }}>❌ Failed {submitResult.passed}/{submitResult.total} test cases</span>
-          <span style={{ color: "var(--text2)" }}>- Fix your code and try submitting again</span>
+          <span style={{ color: "var(--red)", fontWeight: 700 }}>
+            ❌ Failed {submitResult.passed}/{submitResult.total} test cases
+          </span>
+          <span style={{ color: "var(--text2)" }}>
+            - Fix your code and try submitting again
+          </span>
         </div>
       )}
 

@@ -532,9 +532,6 @@ function BattleRoom() {
           ) : (
             <>
               <div className="editor-wrapper" style={{ flex: 1, position: "relative" }}>
-                {submitted && (
-                  <div className="submitted-overlay"><span>✓</span> Code Submitted & Accepted</div>
-                )}
                 <CodeEditor code={myCode} setCode={updateCode} readOnly={submitted || finished || (!timerRunning && battleStarted)} onCursorMove={sendCursor} remoteCursor={remoteCursor} language={language} />
               </div>
               <div className="bottom-panel">
